@@ -1,19 +1,21 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from typing import Union
 
 app = FastAPI()
 
 
 @app.get("/")
-def root():
+async def root():
     return "HELLO WORLD!"
 
 
 @app.get(
     "/error-http-exception",
 )
-def http_exception():
+async def http_exception():
     raise HTTPException(
         status_code=500,
         detail={"CUSTOM-ERROR-BODY-KEY": "VALUE"},
@@ -25,13 +27,47 @@ def http_exception():
 # 에러를 문서에도 명시하려면 어떻게 해야하는가?
 # https://fastapi.tiangolo.com/advanced/additional-responses/
 class ErrorMessage(BaseModel):
+    detail_code: int
     message: str
 
 
-@app.get("/error-with-jsonresponse", responses={500: {"model": ErrorMessage}})
-def json_response():
+@app.get(
+    "/error-with-jsonresponse",
+    responses={500: {"model": ErrorMessage, "description": "CUSTOM DESCRIPTION"}},
+)
+async def json_response():
     return JSONResponse(
         status_code=500,
-        content=ErrorMessage(message="Internal Server Error").json(),
+        content={"detail_code": 5000, "message": "CUSTOM MESSAGE"},
         headers={"CUSTOM-HEADER": "VALUE"},
     )
+
+
+class CustomQueryParameter(BaseModel):
+    q: str
+
+
+async def query_parameter_validation_handler(q: Union[str, None] = None):
+    if q == None:
+        raise HTTPException(
+            status_code=400,
+            detail={"detail_code": 4000, "message": "q required"},
+        )
+
+    if len(q) > 5:
+        raise HTTPException(
+            status_code=400,
+            detail={"detail_code": 4000, "message": "max length of q = 5"},
+        )
+    return q
+
+
+@app.get(
+    "/query-parameter-error",
+    responses={
+        400: {"model": ErrorMessage, "description": "CUSTOM DESCRIPTION"},
+        422: {"model": None},
+    },
+)
+async def json_response(q: str = Depends(query_parameter_validation_handler)):
+    return q
