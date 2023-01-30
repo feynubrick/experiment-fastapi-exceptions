@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, HTTPException, Query, Depends, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -71,3 +71,19 @@ async def query_parameter_validation_handler(q: Union[str, None] = None):
 )
 async def json_response(q: str = Depends(query_parameter_validation_handler)):
     return q
+
+
+class CustomException(HTTPException):
+    def __init__(self):
+        self.status_code = 400
+        self.detail = {"message": "custom exception occurred"}
+
+
+@app.exception_handler(CustomException)
+async def custom_exception_handler(request: Request, exc: CustomException):
+    return JSONResponse(content=exc.detail, status_code=exc.status_code)
+
+
+@app.get("/custom-exception")
+async def custom_exception():
+    raise CustomException()
